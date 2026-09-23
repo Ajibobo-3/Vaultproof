@@ -23,7 +23,7 @@ export const robinhoodChain = defineChain({
   blockExplorers: {
     default: {
       name: "Robinhood Blockscout",
-      url: process.env.NEXT_PUBLIC_EXPLORER_URL || "https://robinhoodchain.blockscout.com",
+      url: process.env.NEXT_PUBLIC_EXPLORER_URL || "https://explorer.mainnet.chain.robinhood.com",
     },
   },
   testnet: false,

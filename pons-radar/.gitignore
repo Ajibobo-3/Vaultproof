@@ -1,0 +1,32 @@
+# Environment & Secrets (NEVER COMMIT)
+.env
+.env.local
+.env.*
+!.env.example
+
+# Node Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database & Persistent State
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+radar.db
+data/*.db*
+
+# Production & Build Logs
+logs/
+*.log
+
+# OS & Editor Artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+data/*.db*

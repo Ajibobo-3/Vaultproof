@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { useAccount, useReadContract } from "wagmi";
+import { formatUnits, type Address } from "viem";
 import { 
   Lock, 
   Unlock, 
@@ -11,18 +13,21 @@ import {
   ExternalLink, 
   Users, 
   Zap,
-  ChevronRight,
-  Sparkles
+  Sparkles,
+  Loader2,
+  Wallet
 } from "lucide-react";
 import { WhaleHolder, CurveAlert } from "@/lib/types/terminal";
-import { robinhoodChain } from "@/lib/web3/chains";
+import { ERC20_ABI } from "@/lib/web3/abis";
 
 interface GatedPanelProps {
-  userVProofBalance: number;
+  userVProofBalance?: number;
   whales: WhaleHolder[];
   alerts: CurveAlert[];
   onUnlockDemo?: () => void;
 }
+
+const REQUIRED_BALANCE = 1_000_000;
 
 export function GatedPanel({
   userVProofBalance,
@@ -30,11 +35,34 @@ export function GatedPanel({
   alerts,
   onUnlockDemo,
 }: GatedPanelProps) {
-  const REQUIRED_BALANCE = 1_000_000;
-  const isUnlocked = userVProofBalance >= REQUIRED_BALANCE;
-  const explorerUrl =
-    robinhoodChain.blockExplorers?.default.url ||
-    "https://robinhoodchain.blockscout.com";
+  const { address, isConnected } = useAccount();
+  const isDemoEnabled = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
+  const vproofAddress = (process.env.NEXT_PUBLIC_VPROOF_TOKEN_ADDRESS ||
+    "0x94B73E06b83fA62bB273e86cE5a720B2F2A1a82d") as Address;
+
+  // Live on-chain read of connected wallet's $VPROOF balance
+  const { data: rawBalance, isLoading: balanceLoading } = useReadContract({
+    address: vproofAddress,
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: {
+      enabled: isConnected && !!address,
+      refetchInterval: 12000,
+    },
+  });
+
+  const onChainBalance = rawBalance !== undefined && rawBalance !== null
+    ? parseFloat(formatUnits(rawBalance as bigint, 18))
+    : 0;
+
+  // In production, rely strictly on on-chain wallet balance. In demo mode, respect the demo toggle.
+  const effectiveBalance = isDemoEnabled && userVProofBalance !== undefined
+    ? userVProofBalance
+    : (isConnected ? onChainBalance : 0);
+
+  const isUnlocked = effectiveBalance >= REQUIRED_BALANCE;
 
   return (
     <div className="relative rounded-2xl border border-white/10 bg-[#0E1117]/85 backdrop-blur-xl overflow-hidden shadow-2xl">
@@ -74,9 +102,13 @@ export function GatedPanel({
         {/* Balance Status Badge */}
         <div className="flex items-center space-x-2 bg-white/[0.03] border border-white/10 px-4 py-2 rounded-xl text-xs font-mono">
           <span className="text-gray-400">Your $VPROOF:</span>
-          <span className={`font-bold ${isUnlocked ? "text-emerald-400" : "text-amber-400"}`}>
-            {userVProofBalance.toLocaleString()} $VPROOF
-          </span>
+          {balanceLoading ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+          ) : (
+            <span className={`font-bold ${isUnlocked ? "text-emerald-400" : "text-amber-400"}`}>
+              {effectiveBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })} $VPROOF
+            </span>
+          )}
           <span className="text-gray-500">/ 1.0M Req</span>
         </div>
       </div>
@@ -109,7 +141,7 @@ export function GatedPanel({
 
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <a
-                  href={`https://www.ponsfamily.com/launchpad`}
+                  href="https://www.ponsfamily.com/launchpad"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 shadow-emerald-glow"
@@ -118,7 +150,8 @@ export function GatedPanel({
                   <ExternalLink className="w-4 h-4" />
                 </a>
 
-                {onUnlockDemo && (
+                {/* Demo toggle mode enabled only if NEXT_PUBLIC_DEMO_MODE=true */}
+                {isDemoEnabled && onUnlockDemo && (
                   <button
                     onClick={onUnlockDemo}
                     className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/15 text-cyan-300 font-mono text-xs transition-all flex items-center justify-center gap-1.5"

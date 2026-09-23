@@ -86,8 +86,8 @@ export function Header({
 
         {/* Right: Wallet Actions & Syndicate Demo Trigger */}
         <div className="flex items-center space-x-3">
-          {/* Quick Mock/Live Switcher for Testing Syndicate Whitelist */}
-          {onToggleMockBalance && (
+          {/* Quick Mock/Live Switcher for Testing Syndicate Whitelist (Only when NEXT_PUBLIC_DEMO_MODE=true) */}
+          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && onToggleMockBalance && (
             <button
               onClick={onToggleMockBalance}
               title="Toggle simulated whale balance for testing the 1,000,000 $VPROOF gate"

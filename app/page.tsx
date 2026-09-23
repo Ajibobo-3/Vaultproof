@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useAccount, useReadContract } from "wagmi";
-import { formatUnits } from "viem";
+import { useQuery } from "@tanstack/react-query";
+import { formatUnits, type Address } from "viem";
 import { Header } from "@/components/terminal/Header";
 import { GraduationBar } from "@/components/terminal/GraduationBar";
 import { MetricsRow } from "@/components/terminal/MetricsRow";
@@ -15,31 +16,20 @@ import { TerminalState } from "@/lib/types/terminal";
 import { ERC20_ABI } from "@/lib/web3/abis";
 import { 
   ShieldCheck, 
-  Flame, 
-  ExternalLink, 
-  Layers, 
-  Zap, 
-  TrendingUp, 
-  Terminal, 
-  Activity,
-  Code
+  ExternalLink
 } from "lucide-react";
 
 export default function TerminalDashboard() {
   const { address, isConnected } = useAccount();
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
-  // Primary state: starts with high-fidelity sample data, refreshes from API
-  const [terminalState, setTerminalState] = useState<TerminalState>(
-    INITIAL_TERMINAL_STATE
-  );
-
-  // Simulated balance for testing Syndicate Gated Alpha (0 or 1,500,000 $VPROOF)
+  // Demo balance state (active only when NEXT_PUBLIC_DEMO_MODE=true)
   const [mockVProofBalance, setMockVProofBalance] = useState<number>(0);
   const [useMockBalance, setUseMockBalance] = useState<boolean>(false);
 
   // Read actual on-chain $VPROOF balance if wallet is connected
   const vproofContractAddress = (process.env.NEXT_PUBLIC_VPROOF_TOKEN_ADDRESS ||
-    "0x94B73E06b83fA62bB273e86cE5a720B2F2A1a82d") as `0x${string}`;
+    "0x94B73E06b83fA62bB273e86cE5a720B2F2A1a82d") as Address;
 
   const { data: onChainBalanceRaw } = useReadContract({
     address: vproofContractAddress,
@@ -48,44 +38,45 @@ export default function TerminalDashboard() {
     args: address ? [address] : undefined,
     query: {
       enabled: isConnected && !!address,
+      refetchInterval: 12000,
     },
   });
 
-  // Determine effective balance (on-chain balance if connected, or mock balance if toggled for demo)
+  // Effective wallet balance: strictly on-chain in production
   const effectiveVProofBalance = React.useMemo(() => {
-    if (useMockBalance) {
+    if (isDemoMode && useMockBalance) {
       return mockVProofBalance;
     }
-    if (isConnected && onChainBalanceRaw !== undefined) {
+    if (isConnected && onChainBalanceRaw !== undefined && onChainBalanceRaw !== null) {
       try {
         return parseFloat(formatUnits(onChainBalanceRaw as bigint, 18));
       } catch {
-        return mockVProofBalance;
+        return 0;
       }
     }
-    return mockVProofBalance;
-  }, [useMockBalance, mockVProofBalance, isConnected, onChainBalanceRaw]);
+    return isDemoMode ? mockVProofBalance : 0;
+  }, [isDemoMode, useMockBalance, mockVProofBalance, isConnected, onChainBalanceRaw]);
 
-  // Load latest state from API
-  const fetchTerminalState = async () => {
-    try {
+  // SWR / React Query 12-second block sync from live Viem /api/terminal/stats
+  const { 
+    data: terminalState = INITIAL_TERMINAL_STATE, 
+    isLoading,
+    refetch 
+  } = useQuery<TerminalState>({
+    queryKey: ["terminalStats"],
+    queryFn: async () => {
       const res = await fetch("/api/terminal/stats");
-      if (res.ok) {
-        const data = await res.json();
-        setTerminalState(data);
+      if (!res.ok) {
+        throw new Error("Failed to fetch live terminal stats");
       }
-    } catch {
-      // Fallback silently to initial mock state
-    }
-  };
+      return res.json();
+    },
+    refetchInterval: 12000, // 12 seconds block interval sync
+    staleTime: 6000,
+    initialData: INITIAL_TERMINAL_STATE,
+  });
 
-  useEffect(() => {
-    fetchTerminalState();
-    const interval = setInterval(fetchTerminalState, 8000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Handlers for Sandbox / Simulator
+  // Handlers for Sandbox / Simulator (Only used when NEXT_PUBLIC_DEMO_MODE=true)
   const handleSimulateInflow = async (amountEth: number) => {
     try {
       const res = await fetch("/api/terminal/stats", {
@@ -94,8 +85,7 @@ export default function TerminalDashboard() {
         body: JSON.stringify({ action: "SIMULATE_INFLOW", amountEth }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setTerminalState(data.state);
+        await refetch();
       }
     } catch (e) {
       console.error(e);
@@ -110,8 +100,7 @@ export default function TerminalDashboard() {
         body: JSON.stringify({ action: "SIMULATE_BUYBACK", ethAmount }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setTerminalState(data.state);
+        await refetch();
       }
     } catch (e) {
       console.error(e);
@@ -126,8 +115,7 @@ export default function TerminalDashboard() {
         body: JSON.stringify({ action: "RESET" }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setTerminalState(data.state);
+        await refetch();
       }
     } catch (e) {
       console.error(e);
@@ -135,50 +123,66 @@ export default function TerminalDashboard() {
   };
 
   const toggleMockBalance = () => {
+    if (!isDemoMode) return;
     setUseMockBalance(true);
     setMockVProofBalance((prev) => (prev >= 1_000_000 ? 0 : 1_500_000));
   };
 
+  const explorerBaseUrl = process.env.NEXT_PUBLIC_EXPLORER_URL || "https://explorer.mainnet.chain.robinhood.com";
+
   return (
     <div className="min-h-screen bg-[#090A0F] text-gray-100 flex flex-col relative selection:bg-emerald-500/30 selection:text-emerald-200">
-      {/* Background Ambience & Grid */}
+      {/* Background Ambience & Cyber Grid */}
       <div className="fixed inset-0 bg-cyber-grid opacity-40 pointer-events-none" />
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] bg-gradient-to-b from-emerald-500/10 via-cyan-500/5 to-transparent blur-3xl pointer-events-none" />
 
       {/* Module 1: Header / Navigation */}
       <Header
         mockWalletBalance={effectiveVProofBalance}
-        onToggleMockBalance={toggleMockBalance}
+        onToggleMockBalance={isDemoMode ? toggleMockBalance : undefined}
         isMockActive={useMockBalance}
       />
 
       {/* Main Terminal Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 relative z-10">
-        {/* Module 2: Hero & Bonding Curve Progress Tracker */}
-        <GraduationBar graduation={terminalState.graduation} />
-
-        {/* Module 3: Treasury Metrics Row (3 Metric Cards) */}
-        <MetricsRow treasury={terminalState.treasury} />
-
-        {/* Dedicated NVDA Benchmark Module */}
-        <NvidiaBenchmark />
-
-        {/* Interactive Sandbox Simulation Controls */}
-        <FloorDefenseSimulator
-          onSimulateInflow={handleSimulateInflow}
-          onSimulateBuyback={handleSimulateBuyback}
-          onReset={handleReset}
+        {/* Module 2: Hero & Dynamic Bonding Curve Progress Tracker */}
+        <GraduationBar 
+          graduation={terminalState.graduation} 
+          totalBurnedTokens={terminalState.treasury.totalTokensBurned}
+          isLoading={isLoading}
         />
 
-        {/* Module 4: Live Execution Feed */}
-        <LiveFeed events={terminalState.feed} />
+        {/* Module 3: Institutional Treasury Metrics Row */}
+        <MetricsRow 
+          treasury={terminalState.treasury} 
+          ethPriceUsd={terminalState.graduation.ethPriceUsd}
+          isLoading={isLoading}
+        />
+
+        {/* Dedicated NVDA Capital Efficiency Benchmark Module */}
+        <NvidiaBenchmark />
+
+        {/* Interactive Sandbox Simulation Controls (Active only in Demo Mode) */}
+        {isDemoMode && (
+          <FloorDefenseSimulator
+            onSimulateInflow={handleSimulateInflow}
+            onSimulateBuyback={handleSimulateBuyback}
+            onReset={handleReset}
+          />
+        )}
+
+        {/* Module 4: Live On-Chain Execution Feed */}
+        <LiveFeed 
+          events={terminalState.feed} 
+          isLoading={isLoading}
+        />
 
         {/* Module 5: Syndicate Gated Alpha Panel */}
         <GatedPanel
           userVProofBalance={effectiveVProofBalance}
           whales={terminalState.whales}
           alerts={terminalState.alerts}
-          onUnlockDemo={toggleMockBalance}
+          onUnlockDemo={isDemoMode ? toggleMockBalance : undefined}
         />
       </main>
 
@@ -195,12 +199,12 @@ export default function TerminalDashboard() {
           <div className="flex items-center space-x-4">
             <span className="text-gray-500">Pons V2 • Robinhood Chain (ID: 4663)</span>
             <a
-              href="https://robinhoodchain.blockscout.com"
+              href={explorerBaseUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-emerald-400 transition-colors flex items-center gap-1"
             >
-              Blockscout <ExternalLink className="w-3 h-3" />
+              Robinhood Blockscout <ExternalLink className="w-3 h-3" />
             </a>
           </div>
         </div>

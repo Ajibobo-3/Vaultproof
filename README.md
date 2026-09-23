@@ -1,76 +1,105 @@
-# 🛡️ VaultProof ($VPROOF)
-### Autonomous Liquidity Shield & Buyback Terminal on Pons V2 (Robinhood Chain)
+# 🧠 CortexFi — Market Intelligence Engine (MIE)
 
-VaultProof ($VPROOF) is a decentralized autonomous liquidity shield and buyback terminal launching on **Pons V2** on **Robinhood Chain** (Arbitrum Orbit L2, Chain ID 4663).
+CortexFi is a real-time, multi-agent **Market Intelligence Engine (MIE)** designed for quantitative signal filtering, vector-based historical regime matching, multi-agent debate synthesis, and automated accuracy verification.
 
-The protocol routes **100% of Pons V2 creator fees** directly into an automated buyback-and-burn engine. This prevents pre-graduation stalls, guarantees floor price defense, and systematically compresses circulating supply towards the **4.2 ETH graduation target** (Uniswap V4 migration).
-
----
-
-## 🏗️ Architecture & Modules
-
-### 1. Syndicate Terminal Frontend (`/app/page.tsx` & components)
-Built with **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS**, and **Framer Motion**:
-- **Header & Navigation (`Header.tsx`)**: Live Robinhood Chain (ID 4663) status indicator, live Pons hook badge, and Wagmi v2 wallet connection with demo whale switcher.
-- **Hero & Bonding Curve Progress Tracker (`GraduationBar.tsx`)**: Real-time progress towards the 4.2 ETH target, animated graduation bar with milestone checkpoints (50%, 75%, 90%, 98%, 100% Uni V4), circulating supply, and market cap.
-- **Treasury Metrics Row (`MetricsRow.tsx`)**:
-  - *Total Creator Fees Captured*: Accumulated ETH in the Treasury Vault.
-  - *Total Tokens Burned*: Deflationary count of $VPROOF permanently burned to `0x0...dEaD` with percentage of supply.
-  - *Current Floor Defense Multiplier*: Dynamic reserve buying power vs circulating curve depth.
-- **Live Execution Feed (`LiveFeed.tsx`)**: Real-time transaction feed of [Creator Fee Inflows] and [Buyback & Burn] executions with direct Robinhood Blockscout links.
-- **Syndicate Gated Alpha Panel (`GatedPanel.tsx`)**: Token-gated view (>= 1,000,000 $VPROOF) displaying whale wallet distributions and automated curve sentiment alerts with blurred locked state.
-- **Interactive Sandbox Simulator (`FloorDefenseSimulator.tsx`)**: Real-time simulation of incoming creator fees and automated buybacks.
+The platform ingests multi-modal market data feeds (on-chain whale transfers, derivative positioning metrics, unstructured news/social sentiment, and macroeconomic releases), applies quantitative thresholds (**Composite Market Impact Score - CMIS $\ge$ 70.0**), and synthesizes actionable scenario forecasts via a specialized multi-agent pipeline.
 
 ---
 
-### 2. Automation & Monitoring Service (`/scripts/buyback-engine.ts`)
-A typed microservice built with **Viem**:
-- Continuously polls the Treasury Vault ETH balance.
-- Monitors the Pons V2 bonding curve reserves and graduation progress.
-- When threshold is met (accumulated fees >= 0.1 ETH or price dip support):
-  - Calculates minimum tokens out with strict slippage protection (max 2%).
-  - Verifies gas price is under the cap (5 Gwei).
-  - Executes swap on Pons V2 curve for $VPROOF.
-  - Burns tokens directly to the dead address (`0x000000000000000000000000000000000000dEaD`).
-  - Dispatches formatted HTML alerts to Telegram and Discord webhooks.
+## 🏗️ Core Architecture & Pipeline
 
----
-
-## ⚙️ Environment Configuration
-
-Copy `.env.example` to `.env.local`:
-```bash
-cp .env.example .env.local
+```text
+CortexFi MIE Pipeline Architecture
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Whale Ingestor   │  │ Market Data      │  │ Social Sentiment │  │ Macro Calendar   │
+└────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
+         │                     │                     │                     │
+         └─────────────────────┴──────────┬──────────┴─────────────────────┘
+                                          ▼
+                            ┌───────────────────────────┐
+                            │    CMIS Filter Module     │
+                            │ (Multi-Factor Synergy)    │
+                            └─────────────┬─────────────┘
+                                          │ CMIS >= 70.0 Signal
+                                          ▼
+                            ┌───────────────────────────┐
+                            │   Vector Memory Engine    │
+                            │ (Cosine Regime Search)    │
+                            └─────────────┬─────────────┘
+                                          │ Matched Historical Regimes
+                                          ▼
+                            ┌───────────────────────────┐
+                            │  Multi-Agent Synthesizer  │
+                            │ (OnChain, Macro, Memory)  │
+                            └─────────────┬─────────────┘
+                                          │
+                   ┌──────────────────────┼──────────────────────┐
+                   ▼                      ▼                      ▼
+      ┌─────────────────────────┐ ┌───────────────┐ ┌─────────────────────────┐
+      │ Accuracy Tracker Ledger │ │ Telegram Bot  │ │ External Webhook API    │
+      │(1h, 4h, 24h Verification) │ (@CortexFi)   │ │ (HTTP POST JSON)        │
+      └─────────────────────────┘ └───────────────┘ └─────────────────────────┘
 ```
 
-Required variables:
-| Variable | Description | Default / Example |
-|---|---|---|
-| `NEXT_PUBLIC_RPC_URL` | Robinhood Chain RPC | `https://rpc.mainnet.chain.robinhood.com` |
-| `NEXT_PUBLIC_CHAIN_ID` | Chain ID | `4663` |
-| `NEXT_PUBLIC_EXPLORER_URL` | Block Explorer | `https://robinhoodchain.blockscout.com` |
-| `NEXT_PUBLIC_PONS_ROUTER_ADDRESS` | Pons V2 Curve / Router | `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e` |
-| `NEXT_PUBLIC_VPROOF_TOKEN_ADDRESS` | $VPROOF Token Address | `0x94B73E06b83fA62bB273e86cE5a720B2F2A1a82d` |
-| `NEXT_PUBLIC_TREASURY_VAULT_ADDRESS` | Treasury Vault Address | `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC` |
-| `TREASURY_PRIVATE_KEY` | Signer for Buyback Engine | `0x...` |
-| `TELEGRAM_WEBHOOK_URL` | Webhook URL for alerts | `https://api.telegram.org/...` |
+---
+
+## 📁 Codebase Structure
+
+```
+├── config/
+│   ├── settings.py          # Environment settings & dynamic CMIS thresholds
+│   └── .env.example         # Environment template
+├── data/
+│   ├── database/
+│   │   ├── connection.py    # Async Redis & Postgres client pools (with fallback)
+│   │   └── models.py        # Pydantic v2 schemas (RawMarketEvent, FilteredSignal, Forecast)
+│   └── ingestion/
+│       ├── base.py          # Abstract base class for ingestors
+│       ├── whale_tracker.py # RPC/CEX whale transfer listener
+│       ├── market_data.py   # Funding rates & Open Interest collector
+│       ├── social_sentiment.py # X/Twitter & RSS sentiment velocity parser
+│       └── macro_calendar.py # Economic calendar release ingestor (CPI, FOMC)
+├── engine/
+│   ├── filter.py            # Composite Market Impact Score (CMIS) algorithm
+│   ├── memory/
+│   │   └── vector_memory.py # Vector memory & historical regime search engine
+│   ├── accuracy/
+│   │   └── accuracy_tracker.py # Immutable forecast accuracy logger & dynamic tuner
+│   └── agents/
+│       ├── base_agent.py    # Base agent interface
+│       ├── macro_agent.py   # Macro & derivatives analysis logic
+│       ├── onchain_agent.py # Wallet profiling & exchange flow specialist
+│       └── synthesizer.py   # Multi-agent debate & scenario compiler
+├── services/
+│   ├── delivery.py        # Central delivery dispatcher
+│   └── telegram_bot.py    # Async Telegram HTML card signal broadcaster
+├── tests/                   # Pytest suite (100% passing)
+│   ├── test_filter.py
+│   ├── test_social_sentiment.py
+│   ├── test_vector_memory.py
+│   ├── test_accuracy_tracker.py
+│   └── test_telegram_delivery.py
+├── main.py                  # Entry point orchestrating the end-to-end event pipeline
+└── requirements.txt         # Project dependencies
+```
 
 ---
 
-## 🚀 Running the Terminal & Engine
+## 🚀 Setup & Execution
 
-### Run Frontend Terminal
+### 1. Environment Setup
 ```bash
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Run Buyback Engine (Dry-Run / Simulated)
-```bash
-npm run engine:dry-run
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Run Buyback Engine (Live On-Chain)
+### 2. Run Test Suite
 ```bash
-npm run engine
+python3 -m pytest tests/
+```
+
+### 3. Run Main Pipeline Driver
+```bash
+python3 main.py
 ```

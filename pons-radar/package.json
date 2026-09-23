@@ -1,0 +1,31 @@
+{
+  "name": "pons-radar",
+  "version": "1.0.0",
+  "description": "PonsRadar ($RADAR) — Real-time Telegram Tracker & Graduation Radar Bot for Pons Family on Robinhood Chain",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "grammy": "^1.26.0",
+    "node-cron": "^3.0.3",
+    "viem": "^2.21.0"
+  },
+  "keywords": [
+    "telegram-bot",
+    "web3",
+    "defi",
+    "robinhood-chain",
+    "pons-family",
+    "bonding-curve",
+    "graduation-radar"
+  ],
+  "author": "PonsRadar Team",
+  "license": "MIT"
+}

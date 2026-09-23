@@ -2,6 +2,8 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import { useBalance } from "wagmi";
+import type { Address } from "viem";
 import { 
   Rocket, 
   ShieldAlert, 
@@ -10,24 +12,67 @@ import {
   Layers, 
   Zap,
   Target,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from "lucide-react";
 import { CurveGraduationStats } from "@/lib/types/terminal";
 
 interface GraduationBarProps {
   graduation: CurveGraduationStats;
+  totalBurnedTokens?: number;
+  isLoading?: boolean;
 }
 
-export function GraduationBar({ graduation }: GraduationBarProps) {
-  const percent = Math.min(
-    100,
-    Math.max(0, (graduation.currentEth / graduation.targetEth) * 100)
-  );
+const GRADUATION_TARGET_ETH = 4.200;
+const INITIAL_SUPPLY = 1_000_000_000;
 
-  const remainingEth = Math.max(
-    0,
-    graduation.targetEth - graduation.currentEth
-  ).toFixed(3);
+const MILESTONES = [
+  { target: 50, eth: 2.10, label: "50% Core Lock (2.10 ETH)" },
+  { target: 75, eth: 3.15, label: "75% Syndicate Defense (3.15 ETH)" },
+  { target: 90, eth: 3.78, label: "90% Velocity Zone (3.78 ETH)" },
+  { target: 98, eth: 4.116, label: "98% Final Curve Fill (4.116 ETH)" },
+  { target: 100, eth: 4.200, label: "100% Uni V4 Migration (4.20 ETH)" },
+];
+
+export function GraduationBar({ 
+  graduation, 
+  totalBurnedTokens,
+  isLoading: propLoading = false 
+}: GraduationBarProps) {
+  const treasuryAddress = (process.env.NEXT_PUBLIC_TREASURY_VAULT_ADDRESS ||
+    "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC") as Address;
+
+  // Live balance from treasury/curve address
+  const { data: balanceData, isLoading: balanceLoading } = useBalance({
+    address: treasuryAddress,
+    query: {
+      refetchInterval: 12000, // 12 seconds block interval sync
+    },
+  });
+
+  const isLoading = propLoading && balanceLoading && !balanceData && !graduation.currentEth;
+
+  // Determine current curve ETH: prefer on-chain read, fallback to state
+  const rawEth = balanceData ? parseFloat(balanceData.formatted) : graduation.currentEth;
+  const currentCurveEth = Number.isFinite(rawEth) && rawEth > 0 ? rawEth : (graduation.currentEth || 0);
+
+  // Dynamic calculations:
+  // Graduation Progress: (currentCurveEth / 4.200) * 100 (capped at 100%)
+  const percent = Math.min(100, Math.max(0, (currentCurveEth / GRADUATION_TARGET_ETH) * 100));
+
+  // Remaining to Graduate: max(0, 4.200 - currentCurveEth)
+  const remainingEth = Math.max(0, GRADUATION_TARGET_ETH - currentCurveEth).toFixed(3);
+
+  // Circulating Supply: 1,000,000,000 - totalBurnedTokens
+  const burned = totalBurnedTokens !== undefined
+    ? totalBurnedTokens
+    : (INITIAL_SUPPLY - (graduation.currentCirculatingSupply || INITIAL_SUPPLY));
+  const circulatingSupply = Math.max(0, INITIAL_SUPPLY - burned);
+  const burnedPercent = ((burned / INITIAL_SUPPLY) * 100).toFixed(2);
+
+  // Estimated Market Cap
+  const ethPrice = graduation.ethPriceUsd || 2650;
+  const marketCap = Math.round(GRADUATION_TARGET_ETH * (circulatingSupply / INITIAL_SUPPLY) * ethPrice);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#0E1117]/90 to-[#090A0F]/90 p-6 md:p-8 backdrop-blur-xl shadow-2xl">
@@ -46,6 +91,12 @@ export function GraduationBar({ graduation }: GraduationBarProps) {
             <span className="text-xs text-gray-400 font-mono">
               Robinhood Chain (ID: 4663)
             </span>
+            {balanceLoading && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-gray-500">
+                <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
+                Syncing block...
+              </span>
+            )}
           </div>
           <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
             Bonding Curve Graduation Tracker
@@ -73,20 +124,32 @@ export function GraduationBar({ graduation }: GraduationBarProps) {
       <div className="relative z-10 mt-2 mb-6">
         <div className="flex items-end justify-between mb-2">
           <div className="flex items-baseline space-x-2">
-            <span className="text-3xl md:text-4xl font-extrabold font-mono text-white tracking-tight">
-              {graduation.currentEth.toFixed(3)}
-            </span>
-            <span className="text-base font-mono text-emerald-400 font-bold">ETH</span>
-            <span className="text-sm font-mono text-gray-500">/ 4.200 ETH</span>
+            {isLoading ? (
+              <div className="h-9 w-32 bg-white/10 rounded-lg animate-pulse" />
+            ) : (
+              <>
+                <span className="text-3xl md:text-4xl font-extrabold font-mono text-white tracking-tight">
+                  {currentCurveEth.toFixed(3)}
+                </span>
+                <span className="text-base font-mono text-emerald-400 font-bold">ETH</span>
+                <span className="text-sm font-mono text-gray-500">/ 4.200 ETH</span>
+              </>
+            )}
           </div>
 
           <div className="text-right">
-            <div className="text-2xl md:text-3xl font-extrabold font-mono text-gradient-emerald">
-              {percent.toFixed(2)}%
-            </div>
-            <div className="text-xs font-mono text-gray-400">
-              {remainingEth} ETH remaining to Uni V4 migration
-            </div>
+            {isLoading ? (
+              <div className="h-8 w-24 bg-white/10 rounded-lg animate-pulse ml-auto" />
+            ) : (
+              <>
+                <div className="text-2xl md:text-3xl font-extrabold font-mono text-gradient-emerald">
+                  {percent.toFixed(2)}%
+                </div>
+                <div className="text-xs font-mono text-gray-400">
+                  {remainingEth} ETH remaining to Uni V4 migration
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -103,16 +166,16 @@ export function GraduationBar({ graduation }: GraduationBarProps) {
           </motion.div>
         </div>
 
-        {/* Milestone Tick Marks */}
-        <div className="mt-4 grid grid-cols-5 gap-2 text-center">
-          {graduation.milestones.map((m, idx) => {
-            const isCompleted = percent >= m.target;
+        {/* Dynamic Milestones: 50% (2.10 ETH), 75% (3.15 ETH), 90% (3.78 ETH), 98% (4.116 ETH), 100% (4.200 ETH) */}
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+          {MILESTONES.map((m, idx) => {
+            const isCompleted = currentCurveEth >= m.eth;
             return (
               <div
                 key={idx}
                 className={`relative px-2 py-2 rounded-xl border text-xs font-mono transition-all duration-300 ${
                   isCompleted
-                    ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
+                    ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 shadow-sm"
                     : "bg-white/[0.02] border-white/5 text-gray-500"
                 }`}
               >
@@ -125,7 +188,7 @@ export function GraduationBar({ graduation }: GraduationBarProps) {
                   <span>{m.target}%</span>
                 </div>
                 <div className="text-[10px] truncate text-gray-400 mt-0.5">
-                  {m.target === 100 ? "Uni V4 LP" : `${(4.2 * (m.target / 100)).toFixed(2)} ETH`}
+                  {m.target === 100 ? "Uni V4 LP" : `${m.eth.toFixed(2)} ETH`}
                 </div>
               </div>
             );
@@ -140,7 +203,7 @@ export function GraduationBar({ graduation }: GraduationBarProps) {
           <div>
             <div className="text-xs font-mono text-gray-400">Estimated Market Cap</div>
             <div className="text-lg font-bold font-mono text-white">
-              ${graduation.marketCapUsd.toLocaleString()}
+              ${marketCap.toLocaleString()}
             </div>
           </div>
         </div>
@@ -150,7 +213,7 @@ export function GraduationBar({ graduation }: GraduationBarProps) {
           <div>
             <div className="text-xs font-mono text-gray-400">Circulating Supply</div>
             <div className="text-lg font-bold font-mono text-white">
-              {(graduation.currentCirculatingSupply / 1_000_000).toFixed(1)}M{" "}
+              {(circulatingSupply / 1_000_000).toFixed(1)}M{" "}
               <span className="text-xs text-gray-500 font-normal">/ 1.0B</span>
             </div>
           </div>
@@ -161,12 +224,7 @@ export function GraduationBar({ graduation }: GraduationBarProps) {
           <div>
             <div className="text-xs font-mono text-gray-400">Initial Supply Burned</div>
             <div className="text-lg font-bold font-mono text-white">
-              {(
-                ((graduation.initialSupply - graduation.currentCirculatingSupply) /
-                  graduation.initialSupply) *
-                100
-              ).toFixed(2)}
-              % Deflationary
+              {burnedPercent}% Deflationary
             </div>
           </div>
         </div>
